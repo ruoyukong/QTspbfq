@@ -1,0 +1,22 @@
+#root {
+  max-width: 1536px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.login-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.create-app .btns {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.create-app .table {
+  border: 1px solid #ccc;
+  white-space: nowrap;
+}
