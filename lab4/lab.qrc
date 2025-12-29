@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../../icon/jinru.png</file>
+        <file>../../icon/tuichu.png</file>
+        <file>../../icon/xunhuan.png</file>
+    </qresource>
+</RCC>
