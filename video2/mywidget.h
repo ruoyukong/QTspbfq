@@ -12,8 +12,7 @@
 #include <QSlider>
 #include <QTableView>
 #include <QCloseEvent>
-#include <QWidget> // 确保 QWidget 可用
-#include "playlistmodel.h"
+#include "playlistmodel.h" // 保留对现有 playlistmodel.h 的引用，获取 MediaInfo 和 PlaylistModel
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MyWidget; }
@@ -25,18 +24,27 @@ class MyWidget : public QWidget
 
 public:
     MyWidget(QWidget *parent = nullptr);
-    ～MyWidget();
+    ~MyWidget();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
-    void UpdateTime(qint64);
-    void on_slider_valueChanged(int value);
+    // 自动关联槽函数（Qt命名规则：on_控件对象名_信号名）
     void on_btLast_clicked();
     void on_btNext_clicked();
     void on_btStart_clicked();
     void on_btReset_clicked();
     void on_btUpload_clicked();
     void on_btList_clicked();
-    void on_btExport_clicked() {} // 实际连接在构造函数中，可留空或删除
+    void on_btExport_clicked();
+    void on_btClose_clicked();
+    void on_slider_valueChanged(int value);
+    void on_times_valueChanged(int value);
+    void on_lights_valueChanged(int value);
+
+    // 自定义槽函数
+    void UpdateTime();
     void TableClicked(const QModelIndex &index);
     void SetPlayListShown();
     void change_action_state();
@@ -51,11 +59,9 @@ private slots:
     void TrayIconActivated(QSystemTrayIcon::ActivationReason reason);
     void importPlaylist();
     void exportPlaylist();
-    void closeEvent(QCloseEvent *event) override;
 
 private:
-    void PlayCurrent(); // 👈 新增
-
+    // 成员变量
     Ui::MyWidget *ui;
     QMediaPlayer *mediaPlayer;
     QVideoWidget *videoWidget;
@@ -67,15 +73,15 @@ private:
     double currentBrightness;
     QSlider *slider_brightness;
     QColor currentColor;
-    PlaylistModel *playlistModel;
+    PlaylistModel *playlistModel; // 直接使用 playlistmodel.h 中的 PlaylistModel 类
     QTableView *playlistView;
+    QWidget *brightnessOverlay;
 
-    // 替换为叠加层
-    QWidget *brightnessOverlay = nullptr; // 👈 关键：不再用 QGraphicsColorizeEffect
-
+    // 工具函数
     QString getMediaDuration(const QUrl& mediaUrl);
-    void OpenFile();
     void logToFile(const QString &content);
+    void OpenFile();
+    void PlayCurrent();
 };
 
 #endif // MYWIDGET_H
