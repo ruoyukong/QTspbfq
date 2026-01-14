@@ -6,12 +6,141 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>751</width>
-    <height>462</height>
+    <width>776</width>
+    <height>485</height>
    </rect>
   </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>士麦那播放器</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">/* ------------- 核心：保证视频区域最大化，无任何挤压 ------------- */
+QWidget#MyWidget {
+    margin: 0px;
+    padding: 0px;
+    border: none;
+    background-color: #2b2b2b; /* 深灰背景，与视频黑背景过渡自然 */
+}
+
+QTableWidget#tableWidget {
+    margin: 0px;
+    padding: 0px;
+    border: none;
+    background-color: black;
+    z-index: 1;
+}
+
+/* ------------- 按钮：弹性平分整排宽度，自动适配1/2/4个按钮，大小一致 ------------- */
+QPushButton {
+    /* 关键1：取消固定宽高，改用弹性尺寸，支持平分 */
+    min-height: 30px;
+    max-height: 35px;
+    /* 关键2：设置拉伸权重，让同排按钮自动平分父容器宽度 */
+    qproperty-sizePolicy: Expanding;
+    /* 内边距适中，文字不贴边，排版舒展 */
+    padding: 3px 6px;
+    /* 边框：细而清晰，保留辨识度，贴合原有风格 */
+    border: 1px solid #888888;
+    border-radius: 4px; /* 轻微圆角，不生硬 */
+    /* 背景：纯色清爽，不突兀 */
+    background-color: #e8e8e8;
+    /* 文字：统一大小，居中对齐，保证排版整齐 */
+    font-size: 11px;
+    color: #222222;
+    font-smoothing: antialiased;
+    text-align: center;
+    vertical-align: middle;
+    /* 关键3：限制最小宽度，避免按钮过窄变形 */
+    min-width: 60px;
+}
+
+/* 按钮悬浮：柔和反馈，仅启用状态生效 */
+QPushButton:hover:enabled {
+    border: 1px solid #4da6ff;
+    background-color: #f5f5f5;
+    color: #007acc;
+}
+
+/* 按钮按下：轻微下沉，仅启用状态生效 */
+QPushButton:pressed:enabled {
+    border: 1px solid #3a8bd8;
+    background-color: #dcdcdc;
+    padding: 4px 5px 2px 7px; /* 轻微偏移，模拟下沉，不改变整体大小 */
+}
+
+/* ------------- 禁用按钮：美观度优化，保留弹性尺寸 ------------- */
+QPushButton:disabled {
+    /* 保留弹性尺寸，跟随同排按钮平分宽度 */
+    min-height: 30px;
+    max-height: 35px;
+    min-width: 60px;
+    qproperty-sizePolicy: Expanding;
+    /* 边框：浅灰弱化，不刺眼 */
+    border: 1px solid #cccccc;
+    /* 背景：浅灰半透，与启用状态区分明显 */
+    background-color: rgba(230, 230, 230, 0.7);
+    /* 文字：浅灰淡化，清晰不杂乱 */
+    color: black;
+    /* 保留圆角和内边距，风格统一 */
+    border-radius: 4px;
+    padding: 3px 6px;
+}
+
+/* ------------- 滑块：简洁不占地，与按钮风格统一 ------------- */
+QSlider {
+    width: 100%;
+    min-height: 25px;
+    max-height: 30px;
+    margin: 0px 4px;
+    border: none;
+}
+
+QSlider::groove:horizontal {
+    height: 4px;
+    background-color: rgba(153, 153, 153, 0.5);
+    border-radius: 2px;
+    margin: 0px 2px;
+}
+
+QSlider::handle:horizontal {
+    width: 12px;
+    height: 12px;
+    background-color: #4da6ff;
+    border-radius: 6px;
+    margin: -4px 0px;
+}
+
+/* ------------- 标签：简洁不抢眼，不挤压视频 ------------- */
+QLabel {
+    margin: 0px 4px;
+    padding: 2px 4px;
+    border: none;
+    font-size: 11px;
+    color: #f0f0f0;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+/* ------------- 布局：关键！保证按钮可平分宽度，不挤压视频 ------------- */
+/* 按钮所在的水平布局（核心：无内边距，让按钮占满整排） */
+QHBoxLayout {
+    margin: 0px;
+    padding: 0px;
+    spacing: 6px; /* 按钮之间轻微间距，不拥挤 */
+}
+
+/* 垂直布局：保证视频最大化，控件排版整齐 */
+QVBoxLayout {
+    margin: 0px;
+    padding: 0px;
+    spacing: 6px;
+}</string>
   </property>
   <widget class="QWidget" name="widget" native="true">
    <property name="geometry">
@@ -26,13 +155,16 @@
   <widget class="QWidget" name="layoutWidget">
    <property name="geometry">
     <rect>
-     <x>150</x>
+     <x>170</x>
      <y>60</y>
-     <width>371</width>
-     <height>281</height>
+     <width>471</width>
+     <height>371</height>
     </rect>
    </property>
    <layout class="QVBoxLayout" name="verticalLayout_2">
+    <property name="spacing">
+     <number>0</number>
+    </property>
     <item>
      <widget class="QTableWidget" name="tableWidget"/>
     </item>
@@ -86,7 +218,7 @@
             <property name="maximumSize">
              <size>
               <width>16777215</width>
-              <height>16777215</height>
+              <height>30</height>
              </size>
             </property>
             <property name="minimum">
@@ -131,7 +263,7 @@
           <property name="maximumSize">
            <size>
             <width>16777215</width>
-            <height>16777215</height>
+            <height>30</height>
            </size>
           </property>
           <property name="minimum">
