@@ -22,6 +22,9 @@
 #include <QGraphicsScene>
 #include <QGraphicsColorizeEffect>
 #include <QGraphicsView>
+#include <QDialog>
+#include <QHBoxLayout>
+#include <QLabel>
 
 
 // 全局信号量：限制同时获取时长的线程数（保留核心，无冗余）
@@ -500,71 +503,16 @@ void MyWidget::exportPlaylist()
 {
     QString path = QFileDialog::getSaveFileName(this, tr("导出播放列表"), "", "文本文件 (*.txt)");
 
-    // 1. 先判断：用户是否取消了文件选择（未选择保存路径）- 定制白底+黑色字体弹窗
+    // 1. 用户取消选择路径：调用自定义弹窗（白底+黑色文本）
     if (path.isEmpty()) {
-        QMessageBox msgBox(this); // 手动创建弹窗实例，仅当前弹窗生效
-        // 设置弹窗基础属性
-        msgBox.setWindowTitle(tr("提示"));
-        msgBox.setText(tr("已取消保存播放记录"));
-        msgBox.setIcon(QMessageBox::Information);
-        // 定制专属样式：白底 + 黑色字体 + 浅灰按钮
-        msgBox.setStyleSheet(R"(
-            QMessageBox {
-                background-color: white; /* 弹窗白底 */
-                border: 1px solid #eeeeee;
-            }
-            QMessageBox QLabel {
-                color: black; /* 提示文本：黑色字体 */
-                background-color: transparent; /* 标签透明，继承弹窗白底 */
-                font-size: 14px;
-            }
-            QMessageBox QPushButton {
-                background-color: #f5f5f5;
-                color: black;
-                border: 1px solid #cccccc;
-                padding: 6px 20px;
-                margin: 5px;
-                border-radius: 4px;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        )");
-        msgBox.exec(); // 显示弹窗
+        showCustomDialog(tr("提示"), tr("已取消保存播放记录"), Qt::black);
         return;
     }
 
     QFile file(path);
-    // 2. 尝试打开文件，判断是否打开成功 - 定制白底+红色字体弹窗（保存失败）
+    // 2. 文件打开失败：调用自定义弹窗（白底+红色文本）
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox msgBox(this);
-        msgBox.setWindowTitle(tr("保存失败"));
-        msgBox.setText(tr("无法创建/写入文件，请检查路径权限或文件是否被占用"));
-        msgBox.setIcon(QMessageBox::Critical);
-        // 定制专属样式：白底 + 红色字体（错误提示） + 浅灰按钮
-        msgBox.setStyleSheet(R"(
-            QMessageBox {
-                background-color: white; /* 弹窗白底 */
-                border: 1px solid #eeeeee;
-            }
-            QMessageBox QLabel {
-                color: red; /* 错误文本：红色字体 */
-                background-color: transparent;
-                font-size: 14px;
-            }
-            QMessageBox QPushButton {
-                background-color: #f5f5f5;
-                color: black;
-                border: 1px solid #cccccc;
-                padding: 6px 20px;
-                margin: 5px;
-                border-radius: 4px;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        )");
-        msgBox.exec();
+        showCustomDialog(tr("保存失败"), tr("无法创建/写入文件，请检查路径权限或文件是否被占用"), Qt::red);
         return;
     }
 
@@ -575,35 +523,9 @@ void MyWidget::exportPlaylist()
     }
     file.close(); // 手动关闭文件，确保数据写入完成
 
-    // 4. 弹窗提示：保存成功 - 定制白底+绿色字体弹窗
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle(tr("保存成功"));
-    msgBox.setText(tr("播放记录已成功保存到：\n%1").arg(path));
-    msgBox.setIcon(QMessageBox::Information);
-    // 定制专属样式：白底 + 绿色字体（成功提示） + 浅灰按钮
-    msgBox.setStyleSheet(R"(
-        QMessageBox {
-            background-color: white; /* 弹窗白底 */
-            border: 1px solid #eeeeee;
-        }
-        QMessageBox QLabel {
-            color: green; /* 成功文本：绿色字体 */
-            background-color: transparent;
-            font-size: 14px;
-        }
-        QMessageBox QPushButton {
-            background-color: #f5f5f5;
-            color: black;
-            border: 1px solid #cccccc;
-            padding: 6px 20px;
-            margin: 5px;
-            border-radius: 4px;
-        }
-        QMessageBox QPushButton:hover {
-            background-color: #e0e0e0;
-        }
-    )");
-    msgBox.exec();
+    // 4. 保存成功：调用自定义弹窗（白底+绿色文本，显示文件路径）
+    QString successContent = tr("播放记录已成功保存到：\n%1").arg(path);
+    showCustomDialog(tr("保存成功"), successContent, Qt::green);
 
     // 原有日志写入逻辑，保留不变
     logToFile(QString("导出播放列表：") + path);
@@ -763,4 +685,63 @@ void MyWidget::viewResized(const QRect &rect)
 {
     Q_UNUSED(rect);
     updateVideoGeometry();
+}
+// 封装：自定义 QDialog 弹窗工具函数（白底+指定颜色文本+紧凑按钮）
+int MyWidget::showCustomDialog(const QString &title, const QString &content, const QColor &textColor)
+{
+    // 1. 创建 QDialog 实例，设置基础属性（无父窗口遮挡，模态弹窗）
+    QDialog dialog(this);
+    dialog.setWindowTitle(title);
+    dialog.setFixedSize(320, 160); // 固定弹窗尺寸，避免内容挤压（紧凑美观）
+    dialog.setStyleSheet("background-color: white; border: 1px solid #eeeeee;"); // 白底样式
+
+    // 2. 创建文本标签，设置样式（指定颜色+适配字体+居中显示）
+    QLabel *contentLabel = new QLabel(&dialog);
+    contentLabel->setText(content);
+    contentLabel->setWordWrap(true); // 自动换行，解决长文本（如文件路径）显示不全
+    contentLabel->setAlignment(Qt::AlignCenter); // 文本居中
+    // 设置文本样式（颜色+字体大小+内边距）
+    contentLabel->setStyleSheet(QString(R"(
+        QLabel {
+            color: %1;
+            font-size: 12px;
+            margin: 10px 20px;
+            background-color: transparent;
+        }
+    )").arg(textColor.name())); // 传入指定文本颜色（黑/绿/红）
+
+    // 3. 创建确认按钮，设置紧凑样式（解决按钮过大问题）
+    QPushButton *okBtn = new QPushButton(tr("确认"), &dialog);
+    okBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #f5f5f5;
+            color: black;
+            border: 1px solid #cccccc;
+            padding: 3px 20px; /* 紧凑内边距，按钮尺寸适中 */
+            margin: 5px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            background-color: #e0e0e0;
+        }
+    )");
+
+    // 4. 布局弹窗控件（垂直布局：文本在上，按钮在下居中）
+    QVBoxLayout *dialogLayout = new QVBoxLayout(&dialog);
+    dialogLayout->setContentsMargins(10, 10, 10, 10);
+    dialogLayout->setSpacing(15);
+    dialogLayout->addWidget(contentLabel);
+    // 按钮单独用水平布局居中，更美观
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    btnLayout->addWidget(okBtn);
+    btnLayout->addStretch();
+    dialogLayout->addLayout(btnLayout);
+
+    // 5. 绑定按钮信号（点击确认关闭弹窗）
+    connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    // 6. 显示模态弹窗，返回执行结果
+    return dialog.exec();
 }

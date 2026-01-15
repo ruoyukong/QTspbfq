@@ -85,7 +85,8 @@ private:
     void initTrayAndMenu();                // 初始化托盘和上下文菜单
     void initSignalConnection();           // 统一绑定信号槽
     void addCheckableAction(QMenu *menu, QActionGroup *group, const QString &text, bool checked); // 简化 Checkable Action 创建
-
+    // mywidget.h 中，MyWidget 类的 private 部分添加
+    int showCustomDialog(const QString &title, const QString &content, const QColor &textColor);
     // 核心功能函数（保留原功能，简化实现）
     void updateVideoBrightness();          // 更新视频亮度
     void updateVideoGeometry();            // 更新视频显示尺寸（自适应）
