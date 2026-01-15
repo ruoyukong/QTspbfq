@@ -20,6 +20,8 @@
 #include <QResizeEvent>
 #include <QCloseEvent>
 #include <QTimer>
+#include <QGraphicsOpacityEffect>
+#include <QPainter>
 
 // 全局信号量：限制同时获取时长的线程数
 static QSemaphore durationFetchSemaphore(2);
@@ -39,7 +41,6 @@ MyWidget::MyWidget(QWidget *parent)
     , currentColor(Qt::white)
     , playlistModel(new PlaylistModel(this))
     , playlistView(new QTableView(this))
-    , brightnessOverlay(new QWidget(videoWidget))
     , isFullScreenMode(false)
     , progressUpdateTimer(new QTimer(this))
 {
@@ -62,30 +63,27 @@ MyWidget::MyWidget(QWidget *parent)
     videoWidget->setMinimumSize(0, 0);
     videoWidget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
 
-    // 3. 同步修改：用 ui->widget1 承载 videoWidget（替换原 ui->tableWidget）
+    // 3. 用 ui->widget1 承载 videoWidget
     QVBoxLayout *videoLayout = new QVBoxLayout(ui->widget1);
     videoLayout->setContentsMargins(0, 0, 0, 0);
     videoLayout->setSpacing(0);
     videoLayout->addWidget(videoWidget);
     videoLayout->setStretchFactor(videoWidget, 1);
 
-    // ========== 亮度叠加层优化：强绑定 videoWidget 布局，确保联动 ==========
-    brightnessOverlay->setGeometry(videoWidget->rect());
-    brightnessOverlay->setAttribute(Qt::WA_TransparentForMouseEvents);
-    brightnessOverlay->setAttribute(Qt::WA_OpaquePaintEvent, false); // 允许半透明渲染
+    // ========== 亮度叠加层 - 关键修复 ==========
+    brightnessOverlay = new QWidget(videoWidget);
+    brightnessOverlay->setObjectName("brightnessOverlay");
+
+    // 关键设置：确保覆盖层能正确显示
+    brightnessOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true); // 不接收鼠标事件
+    brightnessOverlay->setAttribute(Qt::WA_NoSystemBackground, true); // 不绘制系统背景
+    brightnessOverlay->setAttribute(Qt::WA_OpaquePaintEvent, false); // 允许透明
+    brightnessOverlay->setAutoFillBackground(false);
+
+    // 初始设置为完全透明
     brightnessOverlay->setStyleSheet("background-color: rgba(0,0,0,0);");
-    brightnessOverlay->setContentsMargins(0, 0, 0, 0);
-    QVBoxLayout *overlayLayout = new QVBoxLayout(brightnessOverlay);
-    overlayLayout->setContentsMargins(0, 0, 0, 0);
-    overlayLayout->setSpacing(0);
-    brightnessOverlay->setLayout(overlayLayout);
-    // 关键：将 brightnessOverlay 加入 videoWidget 内部布局，实现强绑定
-    QVBoxLayout *innerVideoLayout = new QVBoxLayout(videoWidget);
-    innerVideoLayout->setContentsMargins(0, 0, 0, 0);
-    innerVideoLayout->setSpacing(0);
-    innerVideoLayout->addWidget(brightnessOverlay);
-    videoWidget->setLayout(innerVideoLayout);
-    // 强制置顶，避免被视频画面覆盖
+
+    // 确保叠加层始终在视频之上
     brightnessOverlay->raise();
     brightnessOverlay->show();
 
@@ -508,10 +506,8 @@ void MyWidget::toggleFullScreen(bool checked)
         isFullScreenMode = false;
     }
 
-    if (videoWidget) {
-        isFullScreenMode ? videoWidget->setGeometry(this->rect()) : videoWidget->setGeometry(ui->widget1->rect());
-    }
-    updateBrightnessOverlayGeometry();
+    updateBrightnessOverlay();
+
     this->layout()->update();
     this->adjustSize();
 }
@@ -644,32 +640,43 @@ void MyWidget::on_times_valueChanged(int value)
     ui->time->setText(currentTime.toString("mm:ss"));
 }
 
-// ========== 亮度调节优化（仅修改现有函数） ==========
+// ========== 亮度调节 - 修复版本 ==========
 void MyWidget::on_lights_valueChanged(int value)
 {
-    if (!brightnessOverlay) return;
+    updateBrightnessOverlay();
+}
 
-    // 强制双层置顶，确保不被视频画面覆盖
-    brightnessOverlay->raise();
-    videoWidget->raise();
-    brightnessOverlay->raise();
+void MyWidget::updateBrightnessOverlay()
+{
+    if (!brightnessOverlay || !videoWidget) return;
 
-    // 准确计算透明度
-    int alpha = qMin(255, qAbs(static_cast<int>(value * 2.55)));
+    int value = slider_brightness->value();
+
+    // 确保亮度叠加层始终在视频之上
+    brightnessOverlay->setParent(videoWidget);
+    brightnessOverlay->setGeometry(videoWidget->rect());
+    brightnessOverlay->raise();
+    brightnessOverlay->show();
+
+    // 计算透明度（0-255）
+    int alpha = qAbs(value) * 2;
+    if (alpha > 255) alpha = 255;
+
+    // 设置颜色
     QString styleSheet;
-
     if (value == 0) {
         styleSheet = "background-color: rgba(0,0,0,0);";
     } else if (value < 0) {
+        // 变暗：黑色半透明层
         styleSheet = QString("background-color: rgba(0, 0, 0, %1);").arg(alpha);
     } else {
+        // 变亮：白色半透明层
         styleSheet = QString("background-color: rgba(255, 255, 255, %1);").arg(alpha);
     }
 
-    // 强制立即重绘，解决样式缓存滞后
+    // 应用样式并强制更新
     brightnessOverlay->setStyleSheet(styleSheet);
-    brightnessOverlay->repaint();
-    videoWidget->repaint();
+    brightnessOverlay->update();
 }
 
 void MyWidget::closeEvent(QCloseEvent *event)
@@ -682,33 +689,13 @@ void MyWidget::closeEvent(QCloseEvent *event)
 void MyWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-
-    if (videoWidget && isFullScreenMode) {
-        videoWidget->setGeometry(this->rect());
-    } else if (videoWidget) {
-        videoWidget->setGeometry(ui->widget1->rect());
-    }
-
-    updateBrightnessOverlayGeometry();
-
-    if (this->layout()) {
-        this->layout()->update();
-    }
-    videoWidget->update();
-    brightnessOverlay->update();
+    updateBrightnessOverlay();
 }
 
-// ========== 亮度叠加层尺寸更新优化 ==========
-void MyWidget::updateBrightnessOverlayGeometry()
+bool MyWidget::eventFilter(QObject *watched, QEvent *event)
 {
-    if (brightnessOverlay && videoWidget) {
-        brightnessOverlay->setGeometry(videoWidget->rect());
-        if (brightnessOverlay->layout()) {
-            brightnessOverlay->layout()->update();
-        }
-        // 强制置顶+重绘，确保尺寸变化后亮度效果不丢失
-        brightnessOverlay->raise();
-        brightnessOverlay->repaint();
+    if (watched == videoWidget && event->type() == QEvent::Resize) {
+        updateBrightnessOverlay();
     }
+    return QWidget::eventFilter(watched, event);
 }
-

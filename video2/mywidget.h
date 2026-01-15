@@ -31,11 +31,11 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
-    // 修正：resizeEvent 是保护成员函数（属于窗口事件重写），移到 protected 下
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
-    // 自动关联槽函数（Qt命名规则：on_控件对象名_信号名）
+    // 自动关联槽函数
     void on_btLast_clicked();
     void on_btNext_clicked();
     void on_btStart_clicked();
@@ -68,7 +68,6 @@ private slots:
     void UpdatePlaybackProgress();
     void UpdateTotalDuration();
 
-
 private:
     // 成员变量
     Ui::MyWidget *ui;
@@ -82,7 +81,7 @@ private:
     double currentBrightness;
     QSlider *slider_brightness;
     QColor currentColor;
-    PlaylistModel *playlistModel; // 直接使用 playlistmodel.h 中的 PlaylistModel 类
+    PlaylistModel *playlistModel;
     QTableView *playlistView;
     QWidget *brightnessOverlay;
     bool isFullScreenMode;
@@ -90,10 +89,9 @@ private:
     // 工具函数
     QString getMediaDuration(const QUrl& mediaUrl);
     void logToFile(const QString &content);
-    void OpenFile();
     void PlayCurrent();
-    void updateBrightnessOverlayGeometry();
-    QTimer *progressUpdateTimer; // 新增：进度更新定时器
+    void updateBrightnessOverlay();
+    QTimer *progressUpdateTimer;
 };
 
 #endif // MYWIDGET_H
