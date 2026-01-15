@@ -722,3 +722,4 @@ void MyWidget::viewResized(const QRect &rect)
     Q_UNUSED(rect);
     updateVideoGeometry(); // 例如触发视频重绘
 }
+123321
