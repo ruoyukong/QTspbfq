@@ -498,19 +498,32 @@ void MyWidget::importPlaylist()
 void MyWidget::exportPlaylist()
 {
     QString path = QFileDialog::getSaveFileName(this, tr("导出播放列表"), "", "文本文件 (*.txt)");
-    if (path.isEmpty()) return;
 
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, tr("错误"), tr("无法保存文件"));
+    // 1. 先判断：用户是否取消了文件选择（未选择保存路径）
+    if (path.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("已取消保存播放记录"));
         return;
     }
 
+    QFile file(path);
+    // 2. 尝试打开文件，判断是否打开成功（保存的前提）
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        // 弹窗提示：保存失败（文件无法打开，可能是权限不足、路径非法等）
+        QMessageBox::critical(this, tr("保存失败"), tr("无法创建/写入文件，请检查路径权限或文件是否被占用"));
+        return;
+    }
+
+    // 3. 写入播放记录（原有核心逻辑，保持不变）
     QTextStream stream(&file);
     for (int i = 0; i < playlistModel->mediaCount(); ++i) {
         stream << playlistModel->mediaAt(i).url.toLocalFile() << "\n";
     }
-    file.close();
+    file.close(); // 手动关闭文件，确保数据写入完成
+
+    // 4. 弹窗提示：保存成功
+    QMessageBox::information(this, tr("保存成功"), tr("播放记录已成功保存到：\n%1").arg(path));
+
+    // 原有日志写入逻辑，保留不变
     logToFile(QString("导出播放列表：") + path);
 }
 
