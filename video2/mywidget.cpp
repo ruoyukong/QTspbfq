@@ -23,6 +23,7 @@
 #include <QGraphicsColorizeEffect>
 #include <QGraphicsView>
 
+
 // 全局信号量：限制同时获取时长的线程数（保留核心，无冗余）
 static QSemaphore durationFetchSemaphore(2);
 
@@ -499,17 +500,71 @@ void MyWidget::exportPlaylist()
 {
     QString path = QFileDialog::getSaveFileName(this, tr("导出播放列表"), "", "文本文件 (*.txt)");
 
-    // 1. 先判断：用户是否取消了文件选择（未选择保存路径）
+    // 1. 先判断：用户是否取消了文件选择（未选择保存路径）- 定制白底+黑色字体弹窗
     if (path.isEmpty()) {
-        QMessageBox::information(this, tr("提示"), tr("已取消保存播放记录"));
+        QMessageBox msgBox(this); // 手动创建弹窗实例，仅当前弹窗生效
+        // 设置弹窗基础属性
+        msgBox.setWindowTitle(tr("提示"));
+        msgBox.setText(tr("已取消保存播放记录"));
+        msgBox.setIcon(QMessageBox::Information);
+        // 定制专属样式：白底 + 黑色字体 + 浅灰按钮
+        msgBox.setStyleSheet(R"(
+            QMessageBox {
+                background-color: white; /* 弹窗白底 */
+                border: 1px solid #eeeeee;
+            }
+            QMessageBox QLabel {
+                color: black; /* 提示文本：黑色字体 */
+                background-color: transparent; /* 标签透明，继承弹窗白底 */
+                font-size: 14px;
+            }
+            QMessageBox QPushButton {
+                background-color: #f5f5f5;
+                color: black;
+                border: 1px solid #cccccc;
+                padding: 6px 20px;
+                margin: 5px;
+                border-radius: 4px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        )");
+        msgBox.exec(); // 显示弹窗
         return;
     }
 
     QFile file(path);
-    // 2. 尝试打开文件，判断是否打开成功（保存的前提）
+    // 2. 尝试打开文件，判断是否打开成功 - 定制白底+红色字体弹窗（保存失败）
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        // 弹窗提示：保存失败（文件无法打开，可能是权限不足、路径非法等）
-        QMessageBox::critical(this, tr("保存失败"), tr("无法创建/写入文件，请检查路径权限或文件是否被占用"));
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle(tr("保存失败"));
+        msgBox.setText(tr("无法创建/写入文件，请检查路径权限或文件是否被占用"));
+        msgBox.setIcon(QMessageBox::Critical);
+        // 定制专属样式：白底 + 红色字体（错误提示） + 浅灰按钮
+        msgBox.setStyleSheet(R"(
+            QMessageBox {
+                background-color: white; /* 弹窗白底 */
+                border: 1px solid #eeeeee;
+            }
+            QMessageBox QLabel {
+                color: red; /* 错误文本：红色字体 */
+                background-color: transparent;
+                font-size: 14px;
+            }
+            QMessageBox QPushButton {
+                background-color: #f5f5f5;
+                color: black;
+                border: 1px solid #cccccc;
+                padding: 6px 20px;
+                margin: 5px;
+                border-radius: 4px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #e0e0e0;
+            }
+        )");
+        msgBox.exec();
         return;
     }
 
@@ -520,8 +575,35 @@ void MyWidget::exportPlaylist()
     }
     file.close(); // 手动关闭文件，确保数据写入完成
 
-    // 4. 弹窗提示：保存成功
-    QMessageBox::information(this, tr("保存成功"), tr("播放记录已成功保存到：\n%1").arg(path));
+    // 4. 弹窗提示：保存成功 - 定制白底+绿色字体弹窗
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("保存成功"));
+    msgBox.setText(tr("播放记录已成功保存到：\n%1").arg(path));
+    msgBox.setIcon(QMessageBox::Information);
+    // 定制专属样式：白底 + 绿色字体（成功提示） + 浅灰按钮
+    msgBox.setStyleSheet(R"(
+        QMessageBox {
+            background-color: white; /* 弹窗白底 */
+            border: 1px solid #eeeeee;
+        }
+        QMessageBox QLabel {
+            color: green; /* 成功文本：绿色字体 */
+            background-color: transparent;
+            font-size: 14px;
+        }
+        QMessageBox QPushButton {
+            background-color: #f5f5f5;
+            color: black;
+            border: 1px solid #cccccc;
+            padding: 6px 20px;
+            margin: 5px;
+            border-radius: 4px;
+        }
+        QMessageBox QPushButton:hover {
+            background-color: #e0e0e0;
+        }
+    )");
+    msgBox.exec();
 
     // 原有日志写入逻辑，保留不变
     logToFile(QString("导出播放列表：") + path);
@@ -634,21 +716,7 @@ void MyWidget::on_btList_clicked()
 
 void MyWidget::on_btExport_clicked()
 {
-    QString path = QFileDialog::getSaveFileName(this, tr("导出播放列表"), "", "文本文件 (*.txt)");
-    if (path.isEmpty()) return;
-
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::warning(this, tr("错误"), tr("无法保存文件"));
-        return;
-    }
-
-    QTextStream stream(&file);
-    for (int i = 0; i < playlistModel->mediaCount(); ++i) {
-        stream << playlistModel->mediaAt(i).url.toLocalFile() << "\n";
-    }
-    file.close();
-    logToFile(QString("导出播放列表：") + path);
+    exportPlaylist();
 }
 
 void MyWidget::on_btClose_clicked()
