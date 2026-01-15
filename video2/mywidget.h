@@ -3,7 +3,6 @@
 
 #include <QWidget>
 #include <QMediaPlayer>
-#include <QVideoWidget>
 #include <QAudioOutput>
 #include <QSystemTrayIcon>
 #include <QMenu>
@@ -15,6 +14,9 @@
 #include <QResizeEvent>
 #include <QPoint>
 #include <QTime>
+#include <QGraphicsView>
+#include <QGraphicsVideoItem>
+#include <QGraphicsEffect>
 #include "playlistmodel.h"
 
 QT_BEGIN_NAMESPACE
@@ -32,7 +34,6 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     // 自动关联槽函数
@@ -72,7 +73,8 @@ private:
     // 成员变量
     Ui::MyWidget *ui;
     QMediaPlayer *mediaPlayer;
-    QVideoWidget *videoWidget;
+    QGraphicsView *videoView;           // 替代 QVideoWidget
+    QGraphicsVideoItem *videoItem;      // 视频项
     QAudioOutput *audioOutput;
     int currentIndex;
     QList<QUrl> sources;
@@ -83,14 +85,14 @@ private:
     QColor currentColor;
     PlaylistModel *playlistModel;
     QTableView *playlistView;
-    QWidget *brightnessOverlay;
     bool isFullScreenMode;
 
     // 工具函数
     QString getMediaDuration(const QUrl& mediaUrl);
     void logToFile(const QString &content);
     void PlayCurrent();
-    void updateBrightnessOverlay();
+    void updateVideoBrightness();
+    void updateVideoGeometry();
     QTimer *progressUpdateTimer;
 };
 

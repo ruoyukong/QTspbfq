@@ -20,8 +20,8 @@
 #include <QResizeEvent>
 #include <QCloseEvent>
 #include <QTimer>
-#include <QGraphicsOpacityEffect>
-#include <QPainter>
+#include <QGraphicsScene>
+#include <QGraphicsColorizeEffect>
 
 // 全局信号量：限制同时获取时长的线程数
 static QSemaphore durationFetchSemaphore(2);
@@ -31,12 +31,13 @@ MyWidget::MyWidget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::MyWidget)
     , mediaPlayer(new QMediaPlayer(this))
-    , videoWidget(new QVideoWidget(this))
+    , videoView(new QGraphicsView(this))
+    , videoItem(new QGraphicsVideoItem())
     , audioOutput(new QAudioOutput(this))
     , currentIndex(-1)
     , tray_icon(nullptr)
     , mainMenu(nullptr)
-    , currentBrightness(1.0)
+    , currentBrightness(0.0)
     , slider_brightness(nullptr)
     , currentColor(Qt::white)
     , playlistModel(new PlaylistModel(this))
@@ -56,36 +57,29 @@ MyWidget::MyWidget(QWidget *parent)
         mainLayout->setSpacing(0);
     }
 
-    // 2. videoWidget 拉伸填充，无背景空白
-    videoWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    videoWidget->setStyleSheet("background-color: black;");
-    videoWidget->setContentsMargins(0, 0, 0, 0);
-    videoWidget->setMinimumSize(0, 0);
-    videoWidget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    // 2. 使用 QGraphicsView 替代 QVideoWidget
+    videoView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    videoView->setStyleSheet("background-color: black; border: none;");
+    videoView->setContentsMargins(0, 0, 0, 0);
+    videoView->setMinimumSize(0, 0);
+    videoView->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    videoView->setRenderHint(QPainter::Antialiasing, false);
+    videoView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    videoView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    videoView->setFrameShape(QFrame::NoFrame);
+    videoView->setAlignment(Qt::AlignCenter);
 
-    // 3. 用 ui->widget1 承载 videoWidget
+    // 创建场景并添加视频项
+    QGraphicsScene *scene = new QGraphicsScene(this);
+    scene->addItem(videoItem);
+    videoView->setScene(scene);
+
+    // 3. 用 ui->widget1 承载 videoView
     QVBoxLayout *videoLayout = new QVBoxLayout(ui->widget1);
     videoLayout->setContentsMargins(0, 0, 0, 0);
     videoLayout->setSpacing(0);
-    videoLayout->addWidget(videoWidget);
-    videoLayout->setStretchFactor(videoWidget, 1);
-
-    // ========== 亮度叠加层 - 关键修复 ==========
-    brightnessOverlay = new QWidget(videoWidget);
-    brightnessOverlay->setObjectName("brightnessOverlay");
-
-    // 关键设置：确保覆盖层能正确显示
-    brightnessOverlay->setAttribute(Qt::WA_TransparentForMouseEvents, true); // 不接收鼠标事件
-    brightnessOverlay->setAttribute(Qt::WA_NoSystemBackground, true); // 不绘制系统背景
-    brightnessOverlay->setAttribute(Qt::WA_OpaquePaintEvent, false); // 允许透明
-    brightnessOverlay->setAutoFillBackground(false);
-
-    // 初始设置为完全透明
-    brightnessOverlay->setStyleSheet("background-color: rgba(0,0,0,0);");
-
-    // 确保叠加层始终在视频之上
-    brightnessOverlay->raise();
-    brightnessOverlay->show();
+    videoLayout->addWidget(videoView);
+    videoLayout->setStretchFactor(videoView, 1);
 
     ui->widget1->setLayout(videoLayout);
     ui->widget1->setContentsMargins(0, 0, 0, 0);
@@ -108,7 +102,7 @@ MyWidget::MyWidget(QWidget *parent)
     }
 
     // ========== 播放器初始化 ==========
-    mediaPlayer->setVideoOutput(videoWidget);
+    mediaPlayer->setVideoOutput(videoItem);
     mediaPlayer->setAudioOutput(audioOutput);
     audioOutput->setVolume(0.5);
 
@@ -160,7 +154,7 @@ MyWidget::MyWidget(QWidget *parent)
     playlistView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     playlistView->setContextMenuPolicy(Qt::CustomContextMenu);
     playlistView->setContentsMargins(0, 0, 0, 0);
-    // 关键：连接 clicked 信号到现有 TableClicked 函数，实现点击切换视频
+    // 连接 clicked 信号到现有 TableClicked 函数
     connect(playlistView, &QTableView::clicked, this, &MyWidget::TableClicked);
 
     // ========== 系统托盘 ==========
@@ -180,7 +174,7 @@ MyWidget::MyWidget(QWidget *parent)
 
     // ========== 上下文菜单 ==========
     setContextMenuPolicy(Qt::CustomContextMenu);
-    videoWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    videoView->setContextMenuPolicy(Qt::CustomContextMenu);
     createContextMenu();
 
     // ========== 进度滑块自动跟随 + 总时长更新 ==========
@@ -200,12 +194,95 @@ MyWidget::MyWidget(QWidget *parent)
     ui->btReset->setEnabled(false);
     ui->btLast->setEnabled(false);
     ui->btNext->setEnabled(false);
+
+    // 初始设置亮度
+    updateVideoBrightness();
 }
 
 // 析构函数
 MyWidget::~MyWidget()
 {
     delete ui;
+}
+
+// ========== 亮度调节 - 使用 QGraphicsColorizeEffect ==========
+void MyWidget::updateVideoBrightness()
+{
+    int value = slider_brightness->value();
+
+    // 移除已有的效果
+    videoItem->setGraphicsEffect(nullptr);
+
+    if (value != 0) {
+        // 创建颜色化效果
+        QGraphicsColorizeEffect *colorizeEffect = new QGraphicsColorizeEffect(this);
+
+        if (value < 0) {
+            // 变暗：使用黑色，强度根据滑块值计算
+            colorizeEffect->setColor(Qt::black);
+            // 将 -100~0 映射到 0~1 的强度
+            float strength = qAbs(value) / 100.0f;
+            colorizeEffect->setStrength(strength * 0.8f); // 限制最大强度为0.8，避免完全变黑
+        } else {
+            // 变亮：使用白色，需要不同的方法
+            // 使用透明度叠加的方法来模拟变亮
+            QGraphicsOpacityEffect *opacityEffect = new QGraphicsOpacityEffect(this);
+
+            // 创建一个小部件用于白色覆盖
+            // 注意：由于我们使用 QGraphicsVideoItem，需要特殊处理
+            // 这里采用调整视频亮度属性的方法
+
+            // 对于变亮，我们可以调整视频的亮度/对比度
+            // 但由于 Qt 没有直接API，使用颜色矩阵变换
+            QGraphicsColorizeEffect *brightnessEffect = new QGraphicsColorizeEffect(this);
+            brightnessEffect->setColor(Qt::white);
+
+            // 将 0~100 映射到 0~0.5 的强度（避免完全变白）
+            float brightnessStrength = value / 200.0f;
+            brightnessEffect->setStrength(brightnessStrength);
+
+            videoItem->setGraphicsEffect(brightnessEffect);
+            return;
+        }
+
+        videoItem->setGraphicsEffect(colorizeEffect);
+    }
+}
+
+// ========== 更新视频尺寸 ==========
+void MyWidget::updateVideoGeometry()
+{
+    if (!videoItem || !videoView) return;
+
+    // 获取视频原始尺寸
+    QSizeF videoSize = videoItem->nativeSize();
+    if (videoSize.isEmpty()) {
+        videoSize = QSizeF(640, 480); // 默认尺寸
+    }
+
+    // 获取视图尺寸
+    QRectF viewRect = videoView->sceneRect();
+    if (viewRect.isEmpty()) {
+        viewRect = videoView->rect();
+    }
+
+    // 计算保持宽高比的最佳尺寸
+    qreal videoAspect = videoSize.width() / videoSize.height();
+    qreal viewAspect = viewRect.width() / viewRect.height();
+
+    if (videoAspect > viewAspect) {
+        // 视频更宽，按宽度缩放
+        qreal newHeight = viewRect.width() / videoAspect;
+        videoItem->setSize(QSizeF(viewRect.width(), newHeight));
+    } else {
+        // 视频更高，按高度缩放
+        qreal newWidth = viewRect.height() * videoAspect;
+        videoItem->setSize(QSizeF(newWidth, viewRect.height()));
+    }
+
+    // 居中显示
+    videoItem->setPos((viewRect.width() - videoItem->size().width()) / 2,
+                      (viewRect.height() - videoItem->size().height()) / 2);
 }
 
 // ========== 进度实时更新 ==========
@@ -276,11 +353,19 @@ void MyWidget::logToFile(const QString &content)
 void MyWidget::PlayCurrent()
 {
     if (currentIndex < 0 || currentIndex >= sources.size()) return;
+
+    // 先移除效果，播放时重新应用
+    videoItem->setGraphicsEffect(nullptr);
+
     mediaPlayer->setSource(sources[currentIndex]);
     mediaPlayer->play();
     ui->btStart->setText(tr("暂停"));
     playlistView->selectRow(currentIndex);
     change_action_state();
+
+    // 延迟应用亮度效果，确保视频已加载
+    QTimer::singleShot(100, this, &MyWidget::updateVideoBrightness);
+
     logToFile(QString("播放视频：") + sources[currentIndex].toLocalFile());
 }
 
@@ -410,26 +495,18 @@ void MyWidget::UpdateTime()
 
 void MyWidget::showContextMenu(const QPoint &pos)
 {
-    mainMenu->popup(videoWidget->isFullScreen() ? pos : mapToGlobal(pos));
+    mainMenu->popup(mapToGlobal(pos));
 }
 
 void MyWidget::aspectChanged(QAction *action)
 {
-    if (action->text() == tr("16:9") || action->text() == tr("4:3")) {
-        videoWidget->setAspectRatioMode(Qt::KeepAspectRatioByExpanding);
-    } else {
-        videoWidget->setAspectRatioMode(Qt::IgnoreAspectRatio);
-    }
+    // 保持宽高比设置
+    updateVideoGeometry();
 }
 
 void MyWidget::scaleChanged(QAction *action)
 {
-    QSize originalSize = videoWidget->sizeHint().isEmpty() ? QSize(640, 480) : videoWidget->sizeHint();
-    if (action->text() == tr("1.2倍缩放")) {
-        videoWidget->resize(qRound(originalSize.width() * 1.2), qRound(originalSize.height() * 1.2));
-    } else {
-        videoWidget->resize(originalSize);
-    }
+    updateVideoGeometry();
 }
 
 void MyWidget::TrayIconActivated(QSystemTrayIcon::ActivationReason reason)
@@ -506,8 +583,7 @@ void MyWidget::toggleFullScreen(bool checked)
         isFullScreenMode = false;
     }
 
-    updateBrightnessOverlay();
-
+    updateVideoGeometry();
     this->layout()->update();
     this->adjustSize();
 }
@@ -544,6 +620,7 @@ void MyWidget::on_btReset_clicked()
 {
     mediaPlayer->stop();
     ui->btStart->setText(tr("播放"));
+    updateVideoBrightness(); // 重置时更新亮度
 }
 
 void MyWidget::on_btUpload_clicked()
@@ -640,43 +717,10 @@ void MyWidget::on_times_valueChanged(int value)
     ui->time->setText(currentTime.toString("mm:ss"));
 }
 
-// ========== 亮度调节 - 修复版本 ==========
+// ========== 亮度滑块变化 ==========
 void MyWidget::on_lights_valueChanged(int value)
 {
-    updateBrightnessOverlay();
-}
-
-void MyWidget::updateBrightnessOverlay()
-{
-    if (!brightnessOverlay || !videoWidget) return;
-
-    int value = slider_brightness->value();
-
-    // 确保亮度叠加层始终在视频之上
-    brightnessOverlay->setParent(videoWidget);
-    brightnessOverlay->setGeometry(videoWidget->rect());
-    brightnessOverlay->raise();
-    brightnessOverlay->show();
-
-    // 计算透明度（0-255）
-    int alpha = qAbs(value) * 2;
-    if (alpha > 255) alpha = 255;
-
-    // 设置颜色
-    QString styleSheet;
-    if (value == 0) {
-        styleSheet = "background-color: rgba(0,0,0,0);";
-    } else if (value < 0) {
-        // 变暗：黑色半透明层
-        styleSheet = QString("background-color: rgba(0, 0, 0, %1);").arg(alpha);
-    } else {
-        // 变亮：白色半透明层
-        styleSheet = QString("background-color: rgba(255, 255, 255, %1);").arg(alpha);
-    }
-
-    // 应用样式并强制更新
-    brightnessOverlay->setStyleSheet(styleSheet);
-    brightnessOverlay->update();
+    updateVideoBrightness();
 }
 
 void MyWidget::closeEvent(QCloseEvent *event)
@@ -689,13 +733,5 @@ void MyWidget::closeEvent(QCloseEvent *event)
 void MyWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    updateBrightnessOverlay();
-}
-
-bool MyWidget::eventFilter(QObject *watched, QEvent *event)
-{
-    if (watched == videoWidget && event->type() == QEvent::Resize) {
-        updateBrightnessOverlay();
-    }
-    return QWidget::eventFilter(watched, event);
+    updateVideoGeometry();
 }
