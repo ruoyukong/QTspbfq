@@ -26,11 +26,10 @@
 #include <QHBoxLayout>
 #include <QLabel>
 
-
-// 全局信号量：限制同时获取时长的线程数（保留核心，无冗余）
+// 全局信号量：限制同时获取视频时长的并发线程数
 static QSemaphore durationFetchSemaphore(2);
 
-// 构造函数实现（简化：封装零散初始化，删除冗余变量）
+// 构造函数：初始化播放器所有核心组件与布局
 MyWidget::MyWidget(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::MyWidget)
@@ -41,7 +40,7 @@ MyWidget::MyWidget(QWidget *parent)
     , currentIndex(-1)
     , tray_icon(nullptr)
     , mainMenu(nullptr)
-    , slider_brightness(nullptr)  // 移除无实际作用的 currentBrightness、currentColor
+    , slider_brightness(nullptr)
     , playlistModel(new PlaylistModel(this))
     , playlistView(new QTableView(this))
     , isFullScreenMode(false)
@@ -50,33 +49,29 @@ MyWidget::MyWidget(QWidget *parent)
     ui->setupUi(this);
     setWindowTitle(tr("士麦那视频播放器"));
 
-    // 封装零散初始化逻辑，使构造函数更清晰
-    initLayoutSetting();    // 布局初始化（消除空白、设置拉伸比）
-    initVideoPlayer();      // 播放器核心初始化
-    initPlaylistView();     // 播放列表初始化
-    initTrayAndMenu();      // 托盘和上下文菜单初始化
-    initSignalConnection(); // 信号槽统一绑定
+    initLayoutSetting();
+    initVideoPlayer();
+    initPlaylistView();
+    initTrayAndMenu();
+    initSignalConnection();
 
-    // 初始按钮状态（保留原功能，无冗余）
     ui->btStart->setEnabled(false);
     ui->btReset->setEnabled(false);
     ui->btLast->setEnabled(false);
     ui->btNext->setEnabled(false);
 
-    // 初始亮度设置（保留原功能）
     updateVideoBrightness();
 }
 
-// 析构函数（无冗余，保留原功能）
+// 析构函数：释放UI资源
 MyWidget::~MyWidget()
 {
     delete ui;
 }
 
-// ========== 封装：布局初始化（合并所有重复的布局设置，删除冗余判断） ==========
+// 初始化播放器整体布局与视频显示区域样式
 void MyWidget::initLayoutSetting()
 {
-    // 主布局：消除空白、设置拉伸比例（合并原分散的 mainLayout 操作）
     QVBoxLayout *mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
     if (mainLayout) {
         mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -85,7 +80,6 @@ void MyWidget::initLayoutSetting()
         mainLayout->setStretchFactor(ui->verticalLayout, 1);
     }
 
-    // 视频播放区域：QGraphicsView 初始化（合并原分散的设置，删除冗余尺寸赋值）
     videoView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     videoView->setStyleSheet("background-color: black; border: none;");
     videoView->setContentsMargins(0, 0, 0, 0);
@@ -95,19 +89,16 @@ void MyWidget::initLayoutSetting()
     videoView->setFrameShape(QFrame::NoFrame);
     videoView->setAlignment(Qt::AlignCenter);
 
-    // 视频场景初始化（保留原功能，无冗余）
     QGraphicsScene *scene = new QGraphicsScene(this);
     scene->addItem(videoItem);
     videoView->setScene(scene);
 
-    // 视频区域放入 widget1（合并原分散的 videoLayout 操作）
     QVBoxLayout *videoLayout = new QVBoxLayout(ui->widget1);
     videoLayout->setContentsMargins(0, 0, 0, 0);
     videoLayout->setSpacing(0);
     videoLayout->addWidget(videoView);
     videoLayout->setStretchFactor(videoView, 1);
 
-    // 底部控制栏布局（保留原功能，简化判断）
     QVBoxLayout *bottomLayout = qobject_cast<QVBoxLayout*>(ui->verticalLayout);
     if (bottomLayout) {
         bottomLayout->setContentsMargins(0, 0, 0, 0);
@@ -115,32 +106,27 @@ void MyWidget::initLayoutSetting()
     }
 }
 
-// ========== 封装：播放器核心初始化（合并原分散的播放器、滑块设置） ==========
+// 初始化媒体播放器、音量与进度/亮度滑块参数
 void MyWidget::initVideoPlayer()
 {
-    // 播放器核心设置（保留原功能）
     mediaPlayer->setVideoOutput(videoItem);
     mediaPlayer->setAudioOutput(audioOutput);
     audioOutput->setVolume(0.5);
 
-    // 进度滑块（删除冗余的 seek_slider 变量，直接操作 ui 组件）
     ui->times->setRange(0, 1000);
     ui->times->setContentsMargins(0, 0, 0, 0);
 
-    // 亮度滑块（保留原功能，移除无作用的变量）
     slider_brightness = ui->lights;
     slider_brightness->setRange(-100, 100);
     slider_brightness->setValue(0);
     slider_brightness->setContentsMargins(0, 0, 0, 0);
 
-    // 进度更新定时器（保留原功能，无冗余）
     progressUpdateTimer->setInterval(50);
 }
 
-// ========== 封装：播放列表初始化（合并样式、模型绑定，简化代码） ==========
+// 初始化播放列表视图样式与数据模型绑定
 void MyWidget::initPlaylistView()
 {
-    // 播放列表样式（简化样式表，合并原分散的 palette 设置）
     playlistView->setStyleSheet(R"(
         QTableView { background-color: white; color: black; border: 1px solid #cccccc; gridline-color: #eeeeee; }
         QTableView::header { background-color: #f5f5f5; color: black; }
@@ -155,7 +141,6 @@ void MyWidget::initPlaylistView()
     playlistView->setPalette(playlistPalette);
     playlistView->setAttribute(Qt::WA_OpaquePaintEvent, true);
 
-    // 播放列表核心设置（保留原功能，简化窗口标志）
     playlistView->setModel(playlistModel);
     playlistView->setColumnWidth(0, 200);
     playlistView->setWindowTitle(tr("播放列表"));
@@ -167,10 +152,9 @@ void MyWidget::initPlaylistView()
     playlistView->setContextMenuPolicy(Qt::CustomContextMenu);
 }
 
-// ========== 封装：托盘和上下文菜单（合并原分散的创建逻辑，简化 Action 创建） ==========
+// 初始化系统托盘与右键上下文菜单
 void MyWidget::initTrayAndMenu()
 {
-    // 系统托盘（保留原功能，无冗余）
     tray_icon = new QSystemTrayIcon(QIcon(":/images/icon.png"), this);
     tray_icon->setToolTip(tr("士麦那视频播放器"));
     QMenu *tray_menu = new QMenu(this);
@@ -185,38 +169,32 @@ void MyWidget::initTrayAndMenu()
     tray_icon->setContextMenu(tray_menu);
     tray_icon->show();
 
-    // 上下文菜单（简化重复的 Action 创建逻辑）
     mainMenu = new QMenu(this);
     setContextMenuPolicy(Qt::CustomContextMenu);
     videoView->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    // 宽高比菜单（封装重复创建逻辑，减少冗余）
     QMenu *aspectMenu = mainMenu->addMenu(tr("宽高比"));
     QActionGroup *aspectGroup = new QActionGroup(aspectMenu);
     aspectGroup->setExclusive(true);
     addCheckableAction(aspectMenu, aspectGroup, tr("自动"), true);
     addCheckableAction(aspectMenu, aspectGroup, tr("16:9"),false);
 
-
-    // 缩放模式菜单（同上，简化重复代码）
     QMenu *scaleMenu = mainMenu->addMenu(tr("缩放模式"));
     QActionGroup *scaleGroup = new QActionGroup(scaleMenu);
     scaleGroup->setExclusive(true);
     addCheckableAction(scaleMenu, scaleGroup, tr("不缩放"), true);
     addCheckableAction(scaleMenu, scaleGroup, tr("1.2倍缩放"),false);
 
-    // 全屏 Action（保留原功能）
     QAction *fullScreenAction = mainMenu->addAction(tr("全屏"));
     fullScreenAction->setCheckable(true);
     connect(fullScreenAction, &QAction::toggled, this, &MyWidget::toggleFullScreen);
 
-    // 导入导出 Action（保留原功能）
     mainMenu->addSeparator();
     mainMenu->addAction(tr("导入播放列表"), this, &MyWidget::importPlaylist);
     mainMenu->addAction(tr("导出播放列表"), this, &MyWidget::exportPlaylist);
 }
 
-// ========== 工具函数：简化重复的 Checkable Action 创建（减少冗余代码） ==========
+// 快速创建带选中状态的菜单动作并加入动作组
 void MyWidget::addCheckableAction(QMenu *menu, QActionGroup *group, const QString &text, bool checked)
 {
     QAction *act = menu->addAction(text);
@@ -225,13 +203,11 @@ void MyWidget::addCheckableAction(QMenu *menu, QActionGroup *group, const QStrin
     group->addAction(act);
 }
 
-// ========== 封装：信号槽统一绑定（合并原分散的 connect，逻辑更清晰） ==========
+// 统一绑定播放器所有核心信号与槽函数
 void MyWidget::initSignalConnection()
 {
-    // 播放列表点击信号
     connect(playlistView, &QTableView::clicked, this, &MyWidget::TableClicked);
 
-    // 进度更新相关信号
     connect(progressUpdateTimer, &QTimer::timeout, this, &MyWidget::UpdatePlaybackProgress);
     connect(mediaPlayer, &QMediaPlayer::durationChanged, this, &MyWidget::UpdateTotalDuration);
     connect(mediaPlayer, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
@@ -242,19 +218,17 @@ void MyWidget::initSignalConnection()
         }
     });
 
-    // 托盘激活信号
     connect(tray_icon, &QSystemTrayIcon::activated, this, &MyWidget::TrayIconActivated);
 }
 
-// ========== 亮度调节（简化：删除冗余变量，合并条件判断，保留原功能） ==========
+// 调整视频播放区域的亮度效果
 void MyWidget::updateVideoBrightness()
 {
     int value = slider_brightness->value();
-    videoItem->setGraphicsEffect(nullptr); // 移除已有效果
+    videoItem->setGraphicsEffect(nullptr);
 
     if (value != 0) {
         QGraphicsColorizeEffect *effect = new QGraphicsColorizeEffect(this);
-        // 合并颜色和强度设置，减少冗余代码
         effect->setColor(value < 0 ? Qt::black : Qt::white);
         float strength = qAbs(value) / 100.0f;
         effect->setStrength(value < 0 ? strength * 0.8f : strength * 0.5f);
@@ -263,30 +237,27 @@ void MyWidget::updateVideoBrightness()
     }
 }
 
-// ========== 更新视频尺寸（简化：删除冗余变量，简化计算逻辑，保留原功能） ==========
+// 根据窗口尺寸更新视频的显示尺寸与居中位置
 void MyWidget::updateVideoGeometry()
 {
     if (!videoItem || !videoView || !videoView->scene()) return;
 
-    // 简化默认尺寸赋值，减少冗余变量
     QSizeF videoSize = videoItem->nativeSize().isEmpty() ? QSizeF(640, 480) : videoItem->nativeSize();
     QRectF viewRect = videoView->viewport()->rect();
     if (viewRect.isEmpty()) return;
 
-    // 简化宽高比计算，合并条件判断
     qreal videoAspect = videoSize.width() / videoSize.height();
     qreal viewAspect = viewRect.width() / viewRect.height();
     QSizeF targetSize = videoAspect > viewAspect
                             ? QSizeF(viewRect.width(), viewRect.width() / videoAspect)
                             : QSizeF(viewRect.height() * videoAspect, viewRect.height());
 
-    // 简化居中设置，删除冗余变量
     videoItem->setSize(targetSize);
     videoItem->setPos(viewRect.center() - videoItem->boundingRect().center());
     videoView->update();
 }
 
-// ========== 进度实时更新（简化：删除冗余变量，简化时间赋值，保留原功能） ==========
+// 定时更新播放进度条与当前播放时间显示
 void MyWidget::UpdatePlaybackProgress()
 {
     if (!mediaPlayer || mediaPlayer->duration() <= 0) return;
@@ -295,27 +266,24 @@ void MyWidget::UpdatePlaybackProgress()
     qint64 totalDuration = mediaPlayer->duration();
     int sliderValue = static_cast<int>((static_cast<qint64>(1000) * currentPos) / totalDuration);
 
-    // 进度滑块更新（保留原功能，无冗余）
     if (ui->times->value() != sliderValue) {
         ui->times->blockSignals(true);
         ui->times->setValue(sliderValue);
         ui->times->blockSignals(false);
     }
 
-    // 简化时间文本赋值，减少冗余变量
     ui->time->setText(QTime(0, (currentPos / 60000) % 60, (currentPos / 1000) % 60).toString("mm:ss"));
 }
 
-// ========== 总时长更新（简化：删除冗余判断，简化时间赋值，保留原功能） ==========
+// 更新视频总时长显示与进度条范围
 void MyWidget::UpdateTotalDuration()
 {
     qint64 totalDuration = mediaPlayer->duration() <= 0 ? 0 : mediaPlayer->duration();
-    // 简化时间文本赋值，减少冗余变量
     ui->totaltime->setText(QTime(0, (totalDuration / 60000) % 60, (totalDuration / 1000) % 60).toString("mm:ss"));
     ui->times->setRange(0, 1000);
 }
 
-// ========== 工具函数：获取视频时长（保留原功能，简化返回值拼接） ==========
+// 获取指定视频文件的时长并格式化返回
 QString MyWidget::getMediaDuration(const QUrl& mediaUrl)
 {
     QMediaPlayer tempPlayer;
@@ -329,18 +297,16 @@ QString MyWidget::getMediaDuration(const QUrl& mediaUrl)
     qint64 duration = tempPlayer.duration();
     if (duration <= 0) return "00:00";
 
-    // 简化返回值拼接，减少冗余变量
     return QString("%1:%2").arg((duration / 60000) % 60, 2, 10, QChar('0'))
         .arg((duration / 1000) % 60, 2, 10, QChar('0'));
 }
 
-// ========== 日志写入（简化：删除冗余变量，简化文件操作，保留原功能） ==========
+// 异步写入操作日志到本地player_log.txt文件
 void MyWidget::logToFile(const QString &content)
 {
     QtConcurrent::run([content]() {
         QFile file("player_log.txt");
         if (file.open(QIODevice::Append | QIODevice::Text)) {
-            // 简化文本流操作，减少冗余变量
             QTextStream stream(&file);
             stream << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss")
                    << " - " << content << "\n";
@@ -348,7 +314,7 @@ void MyWidget::logToFile(const QString &content)
     });
 }
 
-// ========== 播放当前视频（简化：删除冗余的立即调用，保留原功能） ==========
+// 加载并播放当前选中索引对应的视频文件
 void MyWidget::PlayCurrent()
 {
     if (currentIndex < 0 || currentIndex >= sources.size()) return;
@@ -360,7 +326,6 @@ void MyWidget::PlayCurrent()
     playlistView->selectRow(currentIndex);
     change_action_state();
 
-    // 延迟应用效果（保留原功能，删除冗余的立即调用，不影响效果）
     QTimer::singleShot(100, this, [this]() {
         updateVideoBrightness();
         updateVideoGeometry();
@@ -369,7 +334,7 @@ void MyWidget::PlayCurrent()
     logToFile(QString("播放视频：") + sources[currentIndex].toLocalFile());
 }
 
-// ========== 以下函数：保留原功能，仅删除无意义的冗余注释，代码无改动 ==========
+// 响应播放列表点击事件，切换播放对应的视频
 void MyWidget::TableClicked(const QModelIndex &index)
 {
     if (!index.isValid()) return;
@@ -377,6 +342,7 @@ void MyWidget::TableClicked(const QModelIndex &index)
     PlayCurrent();
 }
 
+// 清空播放列表与视频源数据，重置播放状态
 void MyWidget::ClearSources()
 {
     sources.clear();
@@ -388,6 +354,7 @@ void MyWidget::ClearSources()
     logToFile("清空播放列表");
 }
 
+// 切换视频的播放/暂停状态
 void MyWidget::SetPaused()
 {
     if (mediaPlayer->playbackState() == QMediaPlayer::PlayingState) {
@@ -401,6 +368,7 @@ void MyWidget::SetPaused()
     logToFile(QString("切换播放状态：") + (mediaPlayer->playbackState() == QMediaPlayer::PlayingState ? "播放" : "暂停"));
 }
 
+// 播放列表中切换到上一个视频文件
 void MyWidget::SkipBackward()
 {
     if (sources.isEmpty() || currentIndex <= 0) return;
@@ -408,6 +376,7 @@ void MyWidget::SkipBackward()
     PlayCurrent();
 }
 
+// 播放列表中切换到下一个视频文件
 void MyWidget::SkipForward()
 {
     if (sources.isEmpty() || currentIndex >= static_cast<int>(sources.size()) - 1) return;
@@ -415,6 +384,7 @@ void MyWidget::SkipForward()
     PlayCurrent();
 }
 
+// 显示/隐藏播放列表窗口
 void MyWidget::SetPlayListShown()
 {
     if (playlistView->isHidden()) {
@@ -432,6 +402,7 @@ void MyWidget::SetPlayListShown()
     }
 }
 
+// 更新播放器控制按钮的可用状态
 void MyWidget::change_action_state()
 {
     bool hasMedia = !sources.isEmpty();
@@ -441,21 +412,25 @@ void MyWidget::change_action_state()
     ui->btNext->setEnabled(hasMedia && currentIndex < static_cast<int>(sources.size()) - 1);
 }
 
+// 显示右键上下文菜单
 void MyWidget::showContextMenu(const QPoint &pos)
 {
     mainMenu->popup(mapToGlobal(pos));
 }
 
+// 响应宽高比切换事件，更新视频显示布局
 void MyWidget::aspectChanged(QAction *action)
 {
     updateVideoGeometry();
 }
 
+// 响应缩放模式切换事件，更新视频显示布局
 void MyWidget::scaleChanged(QAction *action)
 {
     updateVideoGeometry();
 }
 
+// 响应系统托盘点击事件，恢复播放器窗口显示
 void MyWidget::TrayIconActivated(QSystemTrayIcon::ActivationReason reason)
 {
     if (reason == QSystemTrayIcon::Trigger) {
@@ -464,6 +439,7 @@ void MyWidget::TrayIconActivated(QSystemTrayIcon::ActivationReason reason)
     }
 }
 
+// 从本地文本文件导入播放列表
 void MyWidget::importPlaylist()
 {
     QString path = QFileDialog::getOpenFileName(this, tr("导入播放列表"), "", "文本文件 (*.txt)");
@@ -499,38 +475,35 @@ void MyWidget::importPlaylist()
     change_action_state();
 }
 
+// 导出当前播放列表到本地文本文件，带自定义弹窗提示
 void MyWidget::exportPlaylist()
 {
     QString path = QFileDialog::getSaveFileName(this, tr("导出播放列表"), "", "文本文件 (*.txt)");
 
-    // 1. 用户取消选择路径：调用自定义弹窗（白底+黑色文本）
     if (path.isEmpty()) {
         showCustomDialog(tr("提示"), tr("已取消保存播放记录"), Qt::black);
         return;
     }
 
     QFile file(path);
-    // 2. 文件打开失败：调用自定义弹窗（白底+红色文本）
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         showCustomDialog(tr("保存失败"), tr("无法创建/写入文件，请检查路径权限或文件是否被占用"), Qt::red);
         return;
     }
 
-    // 3. 写入播放记录（原有核心逻辑，保持不变）
     QTextStream stream(&file);
     for (int i = 0; i < playlistModel->mediaCount(); ++i) {
         stream << playlistModel->mediaAt(i).url.toLocalFile() << "\n";
     }
-    file.close(); // 手动关闭文件，确保数据写入完成
+    file.close();
 
-    // 4. 保存成功：调用自定义弹窗（白底+绿色文本，显示文件路径）
     QString successContent = tr("播放记录已成功保存到：\n%1").arg(path);
     showCustomDialog(tr("保存成功"), successContent, Qt::green);
 
-    // 原有日志写入逻辑，保留不变
     logToFile(QString("导出播放列表：") + path);
 }
 
+// 切换播放器的全屏/普通窗口显示模式
 void MyWidget::toggleFullScreen(bool checked)
 {
     if (checked) {
@@ -548,7 +521,7 @@ void MyWidget::toggleFullScreen(bool checked)
     this->adjustSize();
 }
 
-// ========== 按钮槽函数（保留原功能，无冗余改动） ==========
+// 响应上一个按钮点击，切换到上一个视频
 void MyWidget::on_btLast_clicked()
 {
     if (sources.isEmpty() || currentIndex <= 0) return;
@@ -556,6 +529,7 @@ void MyWidget::on_btLast_clicked()
     PlayCurrent();
 }
 
+// 响应下一个按钮点击，切换到下一个视频
 void MyWidget::on_btNext_clicked()
 {
     if (sources.isEmpty() || currentIndex >= static_cast<int>(sources.size()) - 1) return;
@@ -563,6 +537,7 @@ void MyWidget::on_btNext_clicked()
     PlayCurrent();
 }
 
+// 响应播放/暂停按钮点击，切换播放状态
 void MyWidget::on_btStart_clicked()
 {
     if (mediaPlayer->playbackState() == QMediaPlayer::PlayingState) {
@@ -576,6 +551,7 @@ void MyWidget::on_btStart_clicked()
     logToFile(QString("切换播放状态：") + (mediaPlayer->playbackState() == QMediaPlayer::PlayingState ? "播放" : "暂停"));
 }
 
+// 响应重置按钮点击，停止视频播放并重置状态
 void MyWidget::on_btReset_clicked()
 {
     mediaPlayer->stop();
@@ -583,6 +559,7 @@ void MyWidget::on_btReset_clicked()
     updateVideoBrightness();
 }
 
+// 响应打开文件按钮点击，选择并添加视频文件到播放列表
 void MyWidget::on_btUpload_clicked()
 {
     QStringList files = QFileDialog::getOpenFileNames(
@@ -618,6 +595,7 @@ void MyWidget::on_btUpload_clicked()
     change_action_state();
 }
 
+// 响应播放列表按钮点击，显示/隐藏播放列表窗口
 void MyWidget::on_btList_clicked()
 {
     if (playlistView->isHidden()) {
@@ -636,22 +614,26 @@ void MyWidget::on_btList_clicked()
     }
 }
 
+// 响应导出按钮点击，调用播放列表导出功能
 void MyWidget::on_btExport_clicked()
 {
     exportPlaylist();
 }
 
+// 响应关闭按钮点击，退出应用程序
 void MyWidget::on_btClose_clicked()
 {
     qApp->quit();
 }
 
+// 响应音量滑块变动，调整视频播放音量
 void MyWidget::on_slider_valueChanged(int value)
 {
     double volume = static_cast<double>(value) / 100.0;
     audioOutput->setVolume(volume);
 }
 
+// 响应进度条拖动，调整视频播放位置
 void MyWidget::on_times_valueChanged(int value)
 {
     if (!mediaPlayer || mediaPlayer->duration() <= 0) return;
@@ -663,11 +645,13 @@ void MyWidget::on_times_valueChanged(int value)
     ui->time->setText(currentTime.toString("mm:ss"));
 }
 
+// 响应亮度滑块变动，更新视频亮度
 void MyWidget::on_lights_valueChanged(int value)
 {
     updateVideoBrightness();
 }
 
+// 响应窗口关闭事件，隐藏窗口到系统托盘
 void MyWidget::closeEvent(QCloseEvent *event)
 {
     hide();
@@ -675,32 +659,32 @@ void MyWidget::closeEvent(QCloseEvent *event)
     event->ignore();
 }
 
+// 响应窗口尺寸变动事件，更新视频显示布局
 void MyWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     updateVideoGeometry();
 }
 
+// 响应视图尺寸变动，更新视频显示布局
 void MyWidget::viewResized(const QRect &rect)
 {
     Q_UNUSED(rect);
     updateVideoGeometry();
 }
-// 封装：自定义 QDialog 弹窗工具函数（白底+指定颜色文本+紧凑按钮）
+
+// 自定义弹窗工具函数：显示白底指定文字颜色的提示弹窗
 int MyWidget::showCustomDialog(const QString &title, const QString &content, const QColor &textColor)
 {
-    // 1. 创建 QDialog 实例，设置基础属性（无父窗口遮挡，模态弹窗）
     QDialog dialog(this);
     dialog.setWindowTitle(title);
-    dialog.setFixedSize(320, 160); // 固定弹窗尺寸，避免内容挤压（紧凑美观）
-    dialog.setStyleSheet("background-color: white; border: 1px solid #eeeeee;"); // 白底样式
+    dialog.setFixedSize(320, 160);
+    dialog.setStyleSheet("background-color: white; border: 1px solid #eeeeee;");
 
-    // 2. 创建文本标签，设置样式（指定颜色+适配字体+居中显示）
     QLabel *contentLabel = new QLabel(&dialog);
     contentLabel->setText(content);
-    contentLabel->setWordWrap(true); // 自动换行，解决长文本（如文件路径）显示不全
-    contentLabel->setAlignment(Qt::AlignCenter); // 文本居中
-    // 设置文本样式（颜色+字体大小+内边距）
+    contentLabel->setWordWrap(true);
+    contentLabel->setAlignment(Qt::AlignCenter);
     contentLabel->setStyleSheet(QString(R"(
         QLabel {
             color: %1;
@@ -708,16 +692,15 @@ int MyWidget::showCustomDialog(const QString &title, const QString &content, con
             margin: 10px 20px;
             background-color: transparent;
         }
-    )").arg(textColor.name())); // 传入指定文本颜色（黑/绿/红）
+    )").arg(textColor.name()));
 
-    // 3. 创建确认按钮，设置紧凑样式（解决按钮过大问题）
     QPushButton *okBtn = new QPushButton(tr("确认"), &dialog);
     okBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #f5f5f5;
             color: black;
             border: 1px solid #cccccc;
-            padding: 3px 20px; /* 紧凑内边距，按钮尺寸适中 */
+            padding: 3px 20px;
             margin: 5px;
             border-radius: 3px;
             font-size: 12px;
@@ -727,21 +710,17 @@ int MyWidget::showCustomDialog(const QString &title, const QString &content, con
         }
     )");
 
-    // 4. 布局弹窗控件（垂直布局：文本在上，按钮在下居中）
     QVBoxLayout *dialogLayout = new QVBoxLayout(&dialog);
     dialogLayout->setContentsMargins(10, 10, 10, 10);
     dialogLayout->setSpacing(15);
     dialogLayout->addWidget(contentLabel);
-    // 按钮单独用水平布局居中，更美观
     QHBoxLayout *btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
     btnLayout->addWidget(okBtn);
     btnLayout->addStretch();
     dialogLayout->addLayout(btnLayout);
 
-    // 5. 绑定按钮信号（点击确认关闭弹窗）
     connect(okBtn, &QPushButton::clicked, &dialog, &QDialog::accept);
 
-    // 6. 显示模态弹窗，返回执行结果
     return dialog.exec();
 }
