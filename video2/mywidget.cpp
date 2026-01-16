@@ -556,12 +556,7 @@ void MyWidget::on_btLast_clicked()
     PlayCurrent();
 }
 
-void MyWidget::on_btNext_clicked()
-{
-    if (sources.isEmpty() || currentIndex >= static_cast<int>(sources.size()) - 1) return;
-    currentIndex++;
-    PlayCurrent();
-}
+
 
 void MyWidget::on_btStart_clicked()
 {
